@@ -1,7 +1,8 @@
 import sha1 from 'sha1';
 import dbClient from '../utils/db';
+import redisClient from '../utils/redis';
 
-class UsersController {
+class UserController {
   static async postNew(req, res) {
     const { email, password } = req.body;
 
@@ -21,6 +22,22 @@ class UsersController {
 
     return res.status(201).send({ id: result.insertedId, email });
   }
+
+  static async getMe(req, res) {
+    const xToken = req.headers['x-token'];
+    const key = `auth_${xToken}`;
+    const userId = await redisClient.get(key);
+    if (!userId) {
+      return res.status(401).send({ error: 'Unauthorized' });
+    }
+
+    const user = await dbClient.users.findOne({ _id: userId });
+    if (!user) {
+      return res.status(401).send({ error: 'Unauthorized' });
+    }
+
+    return res.status(200).send({ id: user._id, email: user.email });
+  }
 }
 
-export default UsersController;
+export default UserController;
