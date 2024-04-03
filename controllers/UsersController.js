@@ -14,6 +14,7 @@ class UsersController {
     const result = await dbClient.db.collection('users').insertOne(user);
 
     return res.status(201).send({ id: result.insertedId, email });
+  }
 }
 
 export default UsersController;
