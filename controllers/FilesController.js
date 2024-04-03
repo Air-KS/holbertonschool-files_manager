@@ -1,46 +1,53 @@
-import { ObjectId } from 'mongodb';
-import dbClient from '../utils/db';
 import fs from 'fs';
 import path from 'path';
+import { ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
+import dbClient from '../utils/db';
 
 class FilesController {
   static async postUpload(req, res) {
-    const { name, type, parentId, isPublic, data } = req.body;
-
-    // Verify setting
-    if (!name) {
-      return res.status(400).json({ error: 'Missing name' });
-    }
-    if (!type || !['folder', 'file', 'image'].includes(type)) {
-      return res.status(400).json({ error: 'Missing or invalid type' });
-    }
-    if (type !== 'folder' && !data) {
-      return res.status(400).json({ error: 'Missing data' });
-    }
-
-    // Vérify users
-    const userId = req.user ? req.user._id : null;
-    if (!userId) {
+    // Verify users
+    const xToken = req.headers['x-token'];
+    if (!xToken) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    const userId = await redisClient.get(`auth_${xToken}`);
+    if (!userId) {
+      return res.status(401).send({ error: 'Unauthorized' });
+    }
+    const user = await dbClient.users.findOne({ _id: ObjectId(userId) });
+    if (!user) {
+      return res.status(401).send({ error: 'Unauthorized' });
+    }
 
-    // Vérify parent
+    // Verify setting
+    const { name, type, parentId, isPublic, data } = req.body;
+    if (!name) {
+      return res.status(400).send({ error: 'Missing name' });
+    }
+    if (!type || !['folder', 'file', 'image'].includes(type)) {
+      return res.status(400).send({ error: 'Missing type' });
+    }
+    if (type !== 'folder' && !data) {
+      return res.status(400).send({ error: 'Missing data' });
+    }
+
+    // Verify parent
     let modifiedParentId = parentId || 0;
     modifiedParentId = modifiedParentId === '0' ? 0 : ObjectId(modifiedParentId);
     if (modifiedParentId !== 0) {
       const parentFile = await dbClient.files.findOne({ _id: modifiedParentId });
       if (!parentFile) {
-        return res.status(400).json({ error: 'Parent not found' });
+        return res.status(400).send({ error: 'Parent not found' });
       }
       if (parentFile.type !== 'folder') {
-        return res.status(400).json({ error: 'Parent is not a folder' });
+        return res.status(400).send({ error: 'Parent is not a folder' });
       }
     }
 
-    // Create object/instance fileInserData
+    // Create object/instance fileInsertData
     const fileInsertData = {
-      userId: req.user._id,
+      userId: userId,
       name: name,
       type: type,
       isPublic: isPublic || false,
@@ -49,7 +56,7 @@ class FilesController {
 
     if (type === 'folder') {
       const insertedFile = await dbClient.files.insertOne(fileInsertData);
-      return res.status(201).json({ message: 'Folder created successfully', file: insertedFile.ops[0] });
+      return res.status(201).send({ message: 'Folder created successfully', file: insertedFile.ops[0] });
     }
 
     const folderPath = process.env.FOLDER_PATH || '/tmp/files_manager';
@@ -64,7 +71,7 @@ class FilesController {
 
     const insertedFile = await dbClient.files.insertOne(fileInsertData);
 
-    return res.status(201).json({ message: 'File uploaded successfully', file: insertedFile.ops[0] });
+    return res.status(201).send({ message: 'File uploaded successfully', file: insertedFile.ops[0] });
   }
 }
 
