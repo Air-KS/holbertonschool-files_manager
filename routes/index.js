@@ -1,6 +1,6 @@
 import express from 'express';
 import AppController from '../controllers/AppController';
-import UserController from '../controllers/UsersController';
+import UsersController from '../controllers/UsersController';
 import AuthController from '../controllers/AuthController';
 import FilesController from '../controllers/FilesController';
 
@@ -10,10 +10,10 @@ router.get('/status', AppController.getStatus);
 router.get('/stats', AppController.getStats);
 router.get('/connect', AuthController.getConnect);
 router.get('/disconnect', AuthController.getDisconnect);
-router.get('/users/me', UserController.getMe);
+router.get('/users/me', UsersController.getMe);
 
 router.use(express.json());
-router.post('/users', UserController.postNew);
+router.post('/users', UsersController.postNew);
 router.post('/files', FilesController.postUpload);
 
 export default router;
