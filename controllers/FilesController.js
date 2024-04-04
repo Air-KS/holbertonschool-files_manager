@@ -197,7 +197,47 @@ class FilesController {
     }
 
     // retrieve linked file document by user and ID
-    const fileId = request.params.id || '';
+    const fileId = req.params.id || '';
+    if (fileId === '') {
+      return res.status(404).send({ error: 'Not found' });
+    }
+    const document = { _id: ObjectId(fileId), userId: user._id };
+    const file = await dbClient.db.collection('files').findOne(document);
+    if (!file) {
+      return res.status(404).send({ error: 'Not found' });
+    }
+
+    // update the value of isPublic to true
+    await dbClient.db.collection('files').updateOne(document, { $set: { isPublic: true } });
+
+    // return the file document
+    return res.status(200).send({
+      id: file._id,
+      userId: user._id,
+      name: file.name,
+      type: file.type,
+      isPublic: true,
+      parentId: file.parentId,
+    });
+  }
+
+  static async putUnPublish(req, res) {
+    // verify user
+    const xToken = req.headers['x-token'];
+    if (!xToken) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const userId = await redisClient.get(`auth_${xToken}`);
+    if (!userId) {
+      return res.status(401).send({ error: 'Unauthorized' });
+    }
+    const user = await dbClient.db.collection('users').findOne({ _id: ObjectId(userId) });
+    if (!user) {
+      return res.status(401).send({ error: 'Unauthorized' });
+    }
+
+    // retrieve linked file document by user and ID
+    const fileId = req.params.id || '';
     if (fileId === '') {
       return res.status(404).send({ error: 'Not found' });
     }
@@ -208,7 +248,7 @@ class FilesController {
     }
 
     // update the value of isPublic to false
-    await dbClient.db.collection('files').updateOne(document, { $set: { isPublic: true } });
+    await dbClient.db.collection('files').updateOne(document, { $set: { isPublic: false } });
 
     // return the file document
     return res.status(200).send({
