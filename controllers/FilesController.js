@@ -96,6 +96,90 @@ class FilesController {
       });
     }
   }
+
+  static async getShow(req, res) {
+    // verify user
+    const xToken = req.headers['x-token'];
+    if (!xToken) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const userId = await redisClient.get(`auth_${xToken}`);
+    if (!userId) {
+      return res.status(401).send({ error: 'Unauthorized' });
+    }
+    const user = await dbClient.db.collection('users').findOne({ _id: ObjectId(userId) });
+    if (!user) {
+      return res.status(401).send({ error: 'Unauthorized' });
+    }
+
+    // verify file
+    const fileId = request.params.id;
+    if (!fileId) {
+      return response.status(404).send({ error: 'Not found' });
+    }
+    const document = { _id: ObjectId(fileId), userId: user._id };
+    const file = await dbClient.db.collection('files').findOne(document);
+    if (!file) {
+      return response.status(404).send({ error: 'Not found' });
+    }
+
+    // return file document
+    return response.status(200).send({
+      id: file._id,
+      userId: file.userId,
+      name: file.name,
+      type: file.type,
+      isPublic: file.isPublic,
+      parentId: file.parentId,
+    });
+  }
+
+  static async getIndex(req, res) {
+    // verify user
+    const xToken = req.headers['x-token'];
+    if (!xToken) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const userId = await redisClient.get(`auth_${xToken}`);
+    if (!userId) {
+      return res.status(401).send({ error: 'Unauthorized' });
+    }
+    const user = await dbClient.db.collection('users').findOne({ _id: ObjectId(userId) });
+    if (!user) {
+      return res.status(401).send({ error: 'Unauthorized' });
+    }
+
+    // prepare to aggregate
+    const parentId = request.query.parentId || 0;
+    const page = req.query.page || 0;
+
+    let match;
+    if (parentId === 0) {
+      match = {};
+    } else {
+      match = { parentId: parentId === '0' ? Number(parentId) : ObjectId(parentId), };
+    }
+    const limit = 20;
+    const skip = page * limit;
+
+    // aggregate
+    const files = await dbClient.db.collection('files').aggregate([
+      { $match: match },
+      { $skip: skip },
+      { $limit: limit },
+    ]).toArray();
+
+    // return the list of file document
+    const filesList = files.map((file) => ({
+      id: file._id,
+      userId: file.userId,
+      name: file.name,
+      type: file.type,
+      isPublic: file.isPublic,
+      parentId: file.parentId,
+    }));
+    return res.status(200).send(filesList);
+  }
 }
 
 export default FilesController;
