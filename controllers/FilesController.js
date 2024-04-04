@@ -68,8 +68,8 @@ class FilesController {
         if (!fs.existsSync(folderPath)) {
           fs.mkdirSync(folderPath);
         }
-        folderPath += filename;
-        fs.appendFile(folderPath, clearData, (err) => {
+        folderPath = `${folderPath}/${filename}`;
+        fs.writeFileSync(folderPath, clearData, (err) => {
           if (err) throw err;
         });
       } catch (error) {
@@ -86,7 +86,7 @@ class FilesController {
 
       const insertedFile = await dbClient.db.collection('files').insertOne(document);
 
-      res.status(201).send({
+      return res.status(201).send({
         id: insertedFile.insertedId,
         userId,
         name,
@@ -95,7 +95,6 @@ class FilesController {
         parentId: parentId || 0,
       });
     }
-    return res.send();
   }
 }
 
