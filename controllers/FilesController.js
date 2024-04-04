@@ -15,7 +15,7 @@ class FilesController {
     if (!userId) {
       return res.status(401).send({ error: 'Unauthorized' });
     }
-    const user = await dbClient.users.findOne({ _id: ObjectId(userId) });
+    const user = await dbClient.db.collection('users').findOne({ _id: ObjectId(userId) });
     if (!user) {
       return res.status(401).send({ error: 'Unauthorized' });
     }
@@ -36,7 +36,7 @@ class FilesController {
     let modifiedParentId = parentId || 0;
     modifiedParentId = modifiedParentId === '0' ? 0 : ObjectId(modifiedParentId);
     if (modifiedParentId !== 0) {
-      const parentFile = await dbClient.files.findOne({ _id: modifiedParentId });
+      const parentFile = await dbClient.db.collection('files').findOne({ _id: modifiedParentId });
       if (!parentFile) {
         return res.status(400).send({ error: 'Parent not found' });
       }
@@ -45,33 +45,39 @@ class FilesController {
       }
     }
 
-    // Create object/instance fileInsertData
-    const fileInsertData = {
-      userId: userId,
-      name: name,
-      type: type,
-      isPublic: isPublic || false,
-      parentId: modifiedParentId,
-    };
-
+    // Handle file upload
     if (type === 'folder') {
-      const insertedFile = await dbClient.files.insertOne(fileInsertData);
-      return res.status(201).send({ message: 'Folder created successfully', file: insertedFile.ops[0] });
+      const document = {
+        userId,
+        name,
+        type,
+        isPublic: isPublic || false,
+        parentId: 0,
+      };
+      const insertedFolder = await dbClient.db.collection('files').insertOne(document);
+      return res.status(201).send({ message: 'Folder created successfully', file: insertedFolder.ops[0] });
+    } else {
+      const folderPath = process.env.FOLDER_PATH || '/tmp/files_manager';
+      const filename = uuidv4();
+      const filePath = path.join(folderPath, filename);
+
+      fs.mkdirSync(folderPath, { recursive: true });
+
+      fs.writeFileSync(filePath, Buffer.from(data, 'base64'));
+
+      const document = {
+        userId,
+        name,
+        type,
+        isPublic: isPublic || false,
+        parentId: modifiedParentId,
+        localPath: filePath,
+      };
+
+      const insertedFile = await dbClient.db.collection('files').insertOne(document);
+
+      return res.status(201).send({ message: 'File uploaded successfully', file: insertedFile.ops[0] });
     }
-
-    const folderPath = process.env.FOLDER_PATH || '/tmp/files_manager';
-    const filename = uuidv4();
-    const filePath = path.join(folderPath, filename);
-
-    fs.mkdirSync(folderPath, { recursive: true });
-
-    fs.writeFileSync(filePath, Buffer.from(data, 'base64'));
-
-    fileInsertData.localPath = filePath;
-
-    const insertedFile = await dbClient.files.insertOne(fileInsertData);
-
-    return res.status(201).send({ message: 'File uploaded successfully', file: insertedFile.ops[0] });
   }
 }
 
