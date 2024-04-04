@@ -7,9 +7,6 @@ import redisClient from '../utils/redis';
 class AuthController {
   static async getConnect(req, res) {
     const cred = req.headers.authorization.split(' ')[1];
-    if (!cred || !cred.includes(':')) {
-      return res.status(401).send({error: 'Invalide credentials format'});
-    }
     const auth = Buffer.from(cred, 'base64').toString('utf-8');
     const [email, password] = auth.split(':');
     if (!email || !password) {
