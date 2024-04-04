@@ -1,5 +1,4 @@
 import fs from 'fs';
-import path from 'path';
 import { ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import dbClient from '../utils/db';
@@ -34,14 +33,11 @@ class FilesController {
     }
 
     // Verify parent
-    let modifiedParentId = parentId || 0;
-    modifiedParentId = modifiedParentId === '0' ? 0 : ObjectId(modifiedParentId);
-    if (modifiedParentId !== 0) {
-      const parentFile = await dbClient.db.collection('files').findOne({ _id: modifiedParentId });
-      if (!parentFile) {
+    if (parentId) {
+      if (!await dbClient.db.collection('files').findOne({ _id: ObjectId(parentId) }))  {
         return res.status(400).send({ error: 'Parent not found' });
       }
-      if (parentFile.type !== 'folder') {
+      if (!await dbClient.db.collection('files').findOne({ _id: ObjectId(parentId), type: 'folder' })) {
         return res.status(400).send({ error: 'Parent is not a folder' });
       }
     }
@@ -52,33 +48,54 @@ class FilesController {
         userId,
         name,
         type,
-        isPublic: isPublic || false,
+        isPublic: !!isPublic,
         parentId: 0,
       };
       const insertedFolder = await dbClient.db.collection('files').insertOne(document);
-      return res.status(201).send({ message: 'Folder created successfully', file: insertedFolder.ops[0] });
+      res.status(201).send({
+        id: insertedFolder.insertedId,
+        userId,
+        name,
+        type,
+        isPublic: !!isPublic,
+        parentId: 0,
+      });
     } else {
-      const folderPath = process.env.FOLDER_PATH || '/tmp/files_manager';
+      let folderPath = process.env.FOLDER_PATH || '/tmp/files_manager';
       const filename = uuidv4();
-      const filePath = path.join(folderPath, filename);
-
-      fs.mkdirSync(folderPath, { recursive: true });
-
-      fs.writeFileSync(filePath, Buffer.from(data, 'base64'));
-
+      const clearData = Buffer.from(data, 'base64').toString('utf-8');
+      try {
+        if (!fs.existsSync(folderPath)) {
+          fs.mkdirSync(folderPath);
+        }
+        folderPath += filename;
+        fs.appendFile(folderPath, clearData, (err) => {
+          if (err) throw err;
+        });
+      } catch (error) {
+        console.log(error)
+      }
       const document = {
         userId,
         name,
         type,
-        isPublic: isPublic || false,
-        parentId: modifiedParentId,
-        localPath: filePath,
+        isPublic: !!isPublic,
+        parentId: parentId || 0,
+        folderPath,
       };
 
       const insertedFile = await dbClient.db.collection('files').insertOne(document);
 
-      return res.status(201).send({ message: 'File uploaded successfully', file: insertedFile.ops[0] });
+      res.status(201).send({
+        id: insertedFile.insertedId,
+        userId,
+        name,
+        type,
+        isPublic: !!isPublic,
+        parentId: parentId || 0,
+      });
     }
+    return res.send();
   }
 }
 
