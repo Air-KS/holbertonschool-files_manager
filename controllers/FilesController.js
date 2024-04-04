@@ -113,18 +113,18 @@ class FilesController {
     }
 
     // verify file
-    const fileId = request.params.id;
+    const fileId = req.params.id;
     if (!fileId) {
-      return response.status(404).send({ error: 'Not found' });
+      return res.status(404).send({ error: 'Not found' });
     }
     const document = { _id: ObjectId(fileId), userId: user._id };
     const file = await dbClient.db.collection('files').findOne(document);
     if (!file) {
-      return response.status(404).send({ error: 'Not found' });
+      return res.status(404).send({ error: 'Not found' });
     }
 
     // return file document
-    return response.status(200).send({
+    return res.status(200).send({
       id: file._id,
       userId: file.userId,
       name: file.name,
@@ -150,7 +150,7 @@ class FilesController {
     }
 
     // prepare to aggregate
-    const parentId = request.query.parentId || 0;
+    const parentId = req.query.parentId || 0;
     const page = req.query.page || 0;
 
     let match;
