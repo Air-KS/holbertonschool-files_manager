@@ -208,7 +208,9 @@ class FilesController {
     }
 
     // update the value of isPublic to true
-    await dbClient.db.collection('files').updateOne(document, { $set: { isPublic: true } });
+    await dbClient.db.collection('files').updateOne(document, { $set: { isPublic: true } }, (err) => {
+      if (err) throw err;
+    });
 
     // return the file document
     return res.status(200).send({
@@ -248,7 +250,9 @@ class FilesController {
     }
 
     // update the value of isPublic to false
-    await dbClient.db.collection('files').updateOne(document, { $set: { isPublic: false } });
+    await dbClient.db.collection('files').updateOne(document, { $set: { isPublic: false } }, (err) => {
+      if (err) throw err;
+    });
 
     // return the file document
     return res.status(200).send({
