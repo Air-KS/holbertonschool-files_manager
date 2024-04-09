@@ -1,4 +1,5 @@
 import fs from 'fs';
+import mime from 'mime-types';
 import { ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import dbClient from '../utils/db';
@@ -250,7 +251,7 @@ class FilesController {
     }
 
     // update the value of isPublic to false
-    await dbClient.db.collection('files').updateOne(document, { $set: { isPublic: false } }, (err) => {
+    dbClient.db.collection('files').updateOne(document, { $set: { isPublic: false } }, (err) => {
       if (err) throw err;
     });
 
@@ -263,6 +264,47 @@ class FilesController {
       isPublic: true,
       parentId: file.parentId,
     });
+  }
+
+  static async getFile(req, res) {
+    // retrieve linked file document by user and ID
+    const fileId = req.params.id || '';
+    if (fileId === '') {
+      return res.status(404).send({ error: 'Not found' });
+    }
+    const file = await dbClient.db.collection('files').findOne({ _id: ObjectId(fileId) });
+    if (!file) {
+      return res.status(404).send({ error: 'Not found' });
+    }
+
+    // verify if isPublic & no user 
+    if (!file.isPublic) {
+      // verify user
+      const xToken = req.headers['x-token'];
+      const userId = await redisClient.get(`auth_${xToken}`);
+      const user = await dbClient.db.collection('users').findOne({ _id: ObjectId(userId) });
+      if (!user || user._id.toString() !== file.userId.toString()) {
+        return res.status(404).send({ error: 'Not found' });
+      }
+    }
+
+    // verify type is not folder
+    if (file.type === 'folder') {
+      return res.status(400).send({ error: "A folder doesn't have content" });
+    }
+
+    // verify file is locally present or
+    // return the content of the file with the correct MIME-type
+    const size = req.query.size || 0;
+    const path = size === 0 ? file.localPath : `${file.localPath}_${size}`;
+    try {
+      const data = readFileSync(path);
+      const mimeType = mime.contentType(file.name);
+      res.setHeader('Content-Type', mimeType);
+      return res.status(200).send(data);
+    } catch (err) {
+      return res.status(404).send({ error: 'Not found' });
+    }
   }
 }
 
